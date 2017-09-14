@@ -1,0 +1,67 @@
+setwd("C:\\Users\\ba4205\\Desktop\\coursera\\reproducable_research")
+storm <- read.csv("repdata_data_StormData.csv")
+
+#convert all to lower
+event_types<-tolower(storm$EVTYPE)
+
+# replace all punct. characters with a space
+event_types <- gsub("[[:blank:][:punct:]+]", " ", event_types)
+storm$EVTYPE <- event_types
+
+library(plyr,lib="H:/RLibrary")
+
+#find the most fatal event and injury event
+casualties<-ddply(storm,.(EVTYPE),summarize,fatal=sum(FATALITIES),injury=sum(INJURIES))
+
+fatal<-head(casualties[order(casualties$fatal,decreasing=T),],10)
+injury<-head(casualties[order(casualties$injury,decreasing=T),],10)
+
+#plot
+barplot(fatal$fatal,ylab="fatality",xlab="top 10 fatality",col=rainbow(10),legend.text=fatal[1:10,1])
+barplot(injury$injury,ylab="injury",xlab="top 10 injury",col=rainbow(10),legend.text=injury[1:10,1])
+
+#economy damage
+#define a function to get the exponent 
+exp_tr<-function(x){
+  if (x %in% c('h','H'))
+   return (2)
+  else if (x %in% c('k','K'))
+    return (3)
+  else if (x %in% c('m','M'))
+    return (6)
+  else if (x %in% c('b','B'))
+    return (9)
+  else if (!is.na(as.numeric(x)))
+    return (as.numeric(x))
+  else if (x %in% c('','-','?','+'))
+    return(0)
+  else{
+    stop("invalid")
+  }
+}
+
+
+prop_dmg_exp <- sapply(storm$PROPDMGEXP, FUN=exp_tr)
+storm$prop_dmg <- storm$PROPDMG * (10 ** prop_dmg_exp)
+crop_dmg_exp <- sapply(storm$CROPDMGEXP, FUN=exp_tr)
+storm$crop_dmg <- storm$CROPDMG * (10 ** crop_dmg_exp)
+
+# Compute the economic loss by event type
+library(plyr)
+econ_loss <- ddply(storm, .(EVTYPE), summarize,
+                   prop_dmg = sum(prop_dmg),
+                   crop_dmg = sum(crop_dmg))
+
+
+# filter out events that caused no economic loss
+econ_loss <- econ_loss[(econ_loss$prop_dmg > 0 | econ_loss$crop_dmg > 0), ]
+prop_dmg_events <- head(econ_loss[order(econ_loss$prop_dmg, decreasing = T), ], 10)
+crop_dmg_events <- head(econ_loss[order(econ_loss$crop_dmg, decreasing = T), ], 10)
+
+#see top 10
+prop_dmg_events[, c("EVTYPE", "prop_dmg")]
+crop_dmg_events[,c("EVTYPE","prop_dmg")]
+
+#plot
+barplot(prop_dmg_events$prop_dmg,ylab="prop damage",xlab="top 10 property damage",col=rainbow(10),legend.text=prop_dmg_events[1:10,1])
+barplot(crop_dmg_events$crop_dmg,ylab="crop damage",xlab="top 10 crop damage",col=rainbow(10),legend.text=crop_dmg_events[1:10,1])
